@@ -2,16 +2,12 @@ import base64
 import io
 import re
 from google import genai
-from PIL import Image
+from PIL import Image, ImageEnhance # <--- Đã thêm thư viện xử lý ảnh
 import streamlit as st
 import weasyprint
 
-# --- CẤU HÌNH GIAO DIỆN ---
-st.set_page_config(
-    page_title="Hệ Thống Dịch Sách PDF Tự Động", page_icon="📚", layout="wide"
-)
+st.set_page_config(page_title="Dịch Sách Chuẩn Layout 3D", page_icon="📚", layout="wide")
 
-# Thêm CSS để giao diện gọn gàng hơn
 st.markdown("""
 <style>
     .stButton>button { font-weight: bold; font-size: 16px; }
@@ -19,37 +15,26 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-st.title("📚 Dịch Sách Giáo Khoa (Đảm Bảo Hình Gốc 100% & Ép Vừa 1 Trang)")
+st.title("📚 Dịch Sách (Bảo Toàn 100% Hình Ảnh Sinh Động)")
 
-# --- MENU BÊN TRÁI ---
 with st.sidebar:
-    st.header("⚙️ Cài Đặt Hệ Thống")
-    
-    # 1. Nhập API Key (Nếu chạy local thì có thể dùng st.secrets)
+    st.header("⚙️ Cài Đặt")
     api_key = st.text_input("Nhập Google Gemini API Key:", type="password")
     
-    st.markdown("---")
-    
-    # 2. CÔNG TẮC CHỌN NGÔN NGỮ (Tính năng mới)
     target_language = st.radio(
-        "🌐 Chọn ngôn ngữ đích muốn dịch sang:",
+        "🌐 Chọn ngôn ngữ đích:",
         ("Tiếng Việt (Vietnamese)", "Tiếng Anh (English)"),
         index=0
     )
-    
-    st.markdown("---")
-    st.write("💡 *Mẹo: Đảm bảo ảnh chụp trang sách ngay ngắn, đủ sáng để AI lấy tọa độ hình cắt chuẩn nhất.*")
-
 
 if not api_key:
-    st.info("👈 Vui lòng nhập API Key ở thanh bên trái để bắt đầu.")
+    st.info("👈 Vui lòng nhập API Key ở thanh bên trái.")
     st.stop()
 
 client = genai.Client(api_key=api_key)
 
-# --- KHU VỰC TẢI ẢNH ---
 uploaded_file = st.file_uploader(
-    "Tải ảnh một trang sách lên (JPG, PNG)...", type=["jpg", "png", "jpeg"]
+    "Tải ảnh trang sách lên...", type=["jpg", "png", "jpeg"]
 )
 
 if uploaded_file:
@@ -65,70 +50,46 @@ if uploaded_file:
     with col2:
         st.subheader("⚙️ Trạng thái xử lý")
         
-        if st.button("🚀 Xử Lý & Xuất PDF Ngay", type="primary", use_container_width=True):
+        if st.button("🚀 Dịch & Hòa Quyện Hình Ảnh", type="primary", use_container_width=True):
             
-            with st.spinner(f"AI đang phân tích, cắt hình gốc và dịch sang {target_language}..."):
+            with st.spinner("AI đang tính toán bố cục và tẩy trắng phông nền..."):
                 try:
-                    # Rút trích ngôn ngữ chỉ định từ lựa chọn
                     lang_code = "Tiếng Việt" if "Việt" in target_language else "English"
                     
-                    # PROMPT ĐÃ ĐƯỢC CẢI TIẾN THÊM CSS ÉP VỪA 1 TRANG (Fit-to-page)
+                    # PROMPT V4.1 - ÉP BỐ CỤC SINH ĐỘNG VÀ TUYỆT ĐỐI CẤM SVG
                     prompt = f"""
-                    Bạn là một chuyên gia dàn trang sách giáo khoa xuất sắc.
-                    Hãy đọc ảnh trang sách này và tạo lại trang sách bằng mã HTML5. Toàn bộ chữ viết phải được dịch sang {lang_code}.
+                    Bạn là một chuyên gia dàn trang HTML/CSS xuất sắc.
+                    Hãy đọc ảnh trang sách này, tái tạo lại toàn bộ bố cục, dịch chữ sang {lang_code}.
 
-                    YÊU CẦU KIỂM SOÁT HÌNH ẢNH:
-                    - TUYỆT ĐỐI KHÔNG vẽ lại các hình 3D, xúc xắc, khối hộp, sơ đồ hay hình minh họa phức tạp.
-                    - Để giữ 100% hình gốc, bạn hãy đánh dấu vị trí hình đó trong cấu trúc HTML bằng thẻ <CROP_IMAGE ymin="Y1" xmin="X1" ymax="Y2" xmax="X2"></CROP_IMAGE>.
-                    - Tọa độ Y1, X1, Y2, X2 phải được chuẩn hóa theo thang điểm từ 0 đến 1000 bao trọn vùng hình ảnh đó. (X là ngang, Y là dọc).
+                    QUY TẮC SỐ 1 - HÌNH ẢNH SINH ĐỘNG:
+                    - TUYỆT ĐỐI KHÔNG dùng mã SVG, Canvas hay CSS để tự vẽ lại bất kỳ họa tiết nào (nhân vật, ngôi sao, hình khối 3D). Đừng cố vẽ, nó sẽ làm hỏng tính sinh động!
+                    - Thay vào đó, BẮT BUỘC dùng <CROP_IMAGE ymin="Y1" xmin="X1" ymax="Y2" xmax="X2"></CROP_IMAGE> cho MỌI HÌNH VẼ (kể cả những ngôi sao nhỏ rải rác hay nhân vật phù thủy góc dưới).
+                    - Để sắp xếp chúng sinh động lồng vào chữ như bản gốc, hãy bọc <CROP_IMAGE> trong các thẻ div có style như `position: absolute; right: 10%; bottom: 5%;` hoặc `float: right; margin: 10px;` tùy vào vị trí.
 
-                    YÊU CẦU KIỂM SOÁT BỐ CỤC (ÉP VỪA 1 TRANG):
-                    1. Bố cục: Giữ nguyên cấu trúc 2 cột, bảng biểu, hộp màu như trang gốc.
-                    2. Dịch thuật: Dịch toàn bộ văn bản sang {lang_code}. Cố gắng diễn đạt ngắn gọn để không chiếm quá nhiều diện tích.
-                    3. CSS Ép Khung (BẮT BUỘC): Thêm đoạn CSS sau vào thẻ <head> để đảm bảo toàn bộ nội dung thu nhỏ vừa khít 1 trang A4, tuyệt đối không bị tràn sang trang 2:
+                    QUY TẮC SỐ 2 - BỐ CỤC & BẢNG BIỂU:
+                    - Dịch đầy đủ các bảng dữ liệu (Table) ở đầu trang.
+                    - Giữ nguyên cấu trúc câu hỏi 9 đến 15. Dùng HTML structure gọn gàng.
                     
+                    CSS CHUẨN:
                     <style>
-                        @page {{
-                            size: A4 portrait;
-                            margin: 10mm;
-                        }}
-                        body {{
-                            width: 100%;
-                            height: 277mm; /* Chiều cao A4 trừ đi lề */
-                            overflow: hidden; /* Cắt bớt phần thừa nếu có */
-                            box-sizing: border-box;
-                            font-size: 11pt; /* Chữ vừa phải */
-                            display: flex;
-                            flex-direction: column;
-                        }}
-                        .main-container {{
-                            flex: 1; /* Tự động co giãn theo chiều dọc */
-                            display: flex;
-                            flex-direction: column;
-                            justify-content: space-between; /* Giãn đều khoảng cách */
-                        }}
-                        img {{
-                            max-height: 150px; /* Giới hạn chiều cao hình ảnh để không chiếm chỗ */
-                            object-fit: contain;
-                        }}
+                        @page {{ size: A4 portrait; margin: 10mm 15mm; }}
+                        body {{ font-family: sans-serif; font-size: 10.5pt; line-height: 1.4; color: #333; position: relative; }}
+                        p, div, h1, h2, h3 {{ margin: 0 0 6px 0; padding: 0; }}
+                        table {{ border-collapse: collapse; width: 100%; margin-bottom: 15px; font-size: 9pt; }}
+                        th, td {{ border: 1px solid #999; padding: 4px; text-align: center; }}
+                        th {{ background-color: #f2f2f2; font-weight: bold; }}
                     </style>
-                    
-                    Bọc toàn bộ nội dung body vào thẻ <div class="main-container">...</div>.
-                    Chỉ trả về mã HTML hoàn chỉnh, không kèm markdown (không dùng ```html).
                     """
 
-                    # Gọi API Gemini
                     response = client.models.generate_content(
                         model="gemini-3.5-flash", contents=[image, prompt]
                     )
 
                     html_code = response.text
-                    
-                    # Dọn dẹp mã markdown
                     html_code = re.sub(r"^```html\s*", "", html_code, flags=re.MULTILINE)
                     html_code = re.sub(r"^```\s*", "", html_code, flags=re.MULTILINE)
 
-                    # --- HÀM CẮT ẢNH GỐC ---
+                    # --- HÀM CẮT ẢNH VÀ TẨY TRẮNG NỀN THÔNG MINH ---
                     def replace_crop_tag(match):
                         try:
                             ymin = int(match.group("ymin"))
@@ -141,42 +102,43 @@ if uploaded_file:
                             right = (xmax / 1000.0) * img_width
                             bottom = (ymax / 1000.0) * img_height
 
-                            # Cắt và mở rộng lề một chút (+-5px) để khỏi mất nét viền
-                            cropped_img = image.crop((max(0, left-5), max(0, top-5), min(img_width, right+5), min(img_height, bottom+5)))
+                            # Cắt ảnh
+                            cropped_img = image.crop((max(0, left-2), max(0, top-2), min(img_width, right+2), min(img_height, bottom+2)))
 
+                            # THUẬT TOÁN TẨY TRẮNG NỀN GIẤY:
+                            # 1. Tăng độ tương phản (Contrast) lên 20%
+                            enhancer_contrast = ImageEnhance.Contrast(cropped_img)
+                            cropped_img = enhancer_contrast.enhance(1.2)
+                            
+                            # 2. Tăng độ sáng (Brightness) lên 15% -> Giúp màu giấy xám thành màu trắng tinh
+                            enhancer_brightness = ImageEnhance.Brightness(cropped_img)
+                            cropped_img = enhancer_brightness.enhance(1.15)
+
+                            # Đóng gói ảnh thành chuỗi Base64
                             buffered = io.BytesIO()
                             cropped_img.save(buffered, format="PNG")
                             img_str = base64.b64encode(buffered.getvalue()).decode()
 
-                            # Chèn ảnh đã cắt, CSS tự động bóp nhỏ nếu ảnh quá to để không bị tràn trang
-                            return f'<img src="data:image/png;base64,{img_str}" style="max-width:100%; display:block; margin: 4px auto; border-radius: 4px;"/>'
-                        except Exception as e:
-                            print(f"Lỗi crop ảnh: {e}")
+                            # Chèn ảnh, dùng style CSS blend-mode (hỗ trợ hiển thị hài hòa hơn)
+                            return f'<img src="data:image/png;base64,{img_str}" style="max-width: 100%; height: auto; display: block; mix-blend-mode: multiply;"/>'
+                        except Exception:
                             return ""
 
-                    # Thay thế thẻ CROP_IMAGE bằng ảnh thật
-                    pattern = r'<CROP_IMAGE\s+ymin="(?P<ymin>\d+)"\s+xmin="(?P<xmin>\d+)"\s+ymax="(?P<ymax>\d+)"\s+xmax="(?P<xmax>\d+)"></CROP_IMAGE>'
-                    final_html = re.sub(pattern, replace_crop_tag, html_code)
+                    final_html = re.sub(r'<CROP_IMAGE\s+ymin="(?P<ymin>\d+)"\s+xmin="(?P<xmin>\d+)"\s+ymax="(?P<ymax>\d+)"\s+xmax="(?P<xmax>\d+)"></CROP_IMAGE>', replace_crop_tag, html_code)
 
                     st.toast('Đã phân tích xong trang sách!', icon='✅')
 
-                    # CHUYỂN ĐỔI SANG PDF VỚI WEASYPRINT
                     pdf_bytes = weasyprint.HTML(string=final_html).write_pdf()
 
-                    st.success(f"🎉 Hoàn tất! Trang sách đã được dịch sang {lang_code} và ép vừa đúng 1 trang.")
-                    
-                    file_name_export = "Trang_Sach_VN.pdf" if lang_code == "Tiếng Việt" else "Trang_Sach_EN.pdf"
+                    st.success("🎉 Hoàn tất! Các nhân vật 3D đã được hòa quyện vào trang giấy.")
                     
                     st.download_button(
                         label="📥 Tải File PDF Về Máy",
                         data=pdf_bytes,
-                        file_name=file_name_export,
+                        file_name=f"Trang_Sach_{lang_code[:2].upper()}.pdf",
                         mime="application/pdf",
                         use_container_width=True
                     )
-
-                    with st.expander("🔍 Xem mã nguồn HTML (Dành cho nhà phát triển)"):
-                        st.code(final_html, language="html")
 
                 except Exception as e:
                     st.error(f"Đã xảy ra lỗi: {e}")
