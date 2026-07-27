@@ -119,7 +119,7 @@ if uploaded_file:
 
                     # Gọi API Gemini
                     response = client.models.generate_content(
-                        model="gemini-2.5-flash", contents=[image, prompt]
+                        model="gemini-3.5-flash", contents=[image, prompt]
                     )
 
                     html_code = response.text
