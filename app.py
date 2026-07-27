@@ -109,7 +109,7 @@ if uploaded_file:
                     """
 
                     response = client.models.generate_content(
-                        model="gemini-3.5-flash", contents=[image, prompt]
+                        model="gemini-3.5-flash-lite", contents=[image, prompt]
                     )
 
                     html_code = response.text
