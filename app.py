@@ -2,11 +2,11 @@ import base64
 import io
 import re
 from google import genai
-from PIL import Image, ImageEnhance # <--- Đã thêm thư viện xử lý ảnh
+from PIL import Image
 import streamlit as st
 import weasyprint
 
-st.set_page_config(page_title="Dịch Sách Chuẩn Layout 3D", page_icon="📚", layout="wide")
+st.set_page_config(page_title="Dịch Sách Chuẩn 2 Cột", page_icon="📚", layout="wide")
 
 st.markdown("""
 <style>
@@ -15,7 +15,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-st.title("📚 Dịch Sách (Bảo Toàn 100% Hình Ảnh Sinh Động)")
+st.title("📚 Dịch Sách Giáo Khoa (Bố Cục 2 Cột & Tẩy Nền Sạch 100%)")
 
 with st.sidebar:
     st.header("⚙️ Cài Đặt")
@@ -50,46 +50,73 @@ if uploaded_file:
     with col2:
         st.subheader("⚙️ Trạng thái xử lý")
         
-        if st.button("🚀 Dịch & Hòa Quyện Hình Ảnh", type="primary", use_container_width=True):
+        if st.button("🚀 Dịch & Dàn Trang 2 Cột Hoàn Hảo", type="primary", use_container_width=True):
             
-            with st.spinner("AI đang tính toán bố cục và tẩy trắng phông nền..."):
+            with st.spinner("AI đang xử lý bố cục 2 cột và làm sạch hình ảnh..."):
                 try:
                     lang_code = "Tiếng Việt" if "Việt" in target_language else "English"
                     
-                    # PROMPT V4.1 - ÉP BỐ CỤC SINH ĐỘNG VÀ TUYỆT ĐỐI CẤM SVG
+                    # PROMPT V5.0 - ÉP BỐ CỤC 2 CỘT CHUẨN SÁCH GỐC
                     prompt = f"""
-                    Bạn là một chuyên gia dàn trang HTML/CSS xuất sắc.
-                    Hãy đọc ảnh trang sách này, tái tạo lại toàn bộ bố cục, dịch chữ sang {lang_code}.
+                    Bạn là một chuyên gia dàn trang sách giáo khoa xuất sắc.
+                    Hãy đọc ảnh trang sách này, dịch toàn bộ nội dung sang {lang_code} và tạo mã HTML5 hoàn chỉnh.
 
-                    QUY TẮC SỐ 1 - HÌNH ẢNH SINH ĐỘNG:
-                    - TUYỆT ĐỐI KHÔNG dùng mã SVG, Canvas hay CSS để tự vẽ lại bất kỳ họa tiết nào (nhân vật, ngôi sao, hình khối 3D). Đừng cố vẽ, nó sẽ làm hỏng tính sinh động!
-                    - Thay vào đó, BẮT BUỘC dùng <CROP_IMAGE ymin="Y1" xmin="X1" ymax="Y2" xmax="X2"></CROP_IMAGE> cho MỌI HÌNH VẼ (kể cả những ngôi sao nhỏ rải rác hay nhân vật phù thủy góc dưới).
-                    - Để sắp xếp chúng sinh động lồng vào chữ như bản gốc, hãy bọc <CROP_IMAGE> trong các thẻ div có style như `position: absolute; right: 10%; bottom: 5%;` hoặc `float: right; margin: 10px;` tùy vào vị trí.
+                    QUY TẮC DÀN TRANG (QUAN TRỌNG NHẤT):
+                    1. BỐ CỤC 2 CỘT: Trang sách gốc có 2 cột (Cột trái gồm Bài 1, 2, 3; Cột phải gồm Bài 4, 5...). Bạn BẮT BUỘC phải dùng CSS multi-column hoặc chia khung để giữ nguyên cấu trúc 2 cột này. Không được xếp dọc đơn thuần.
+                    2. KHÔNG CẮT XÉN: Đảm bảo dịch và hiển thị đầy đủ từ tiêu đề đầu trang đến bài tập cuối cùng ở chân trang.
+                    3. HÌNH ẢNH: Sử dụng thẻ <CROP_IMAGE ymin="Y1" xmin="X1" ymax="Y2" xmax="X2"></CROP_IMAGE> cho mọi hình minh họa, xúc xắc, khối 3D.
+                    4. TRÌNH BÀY PHÂN SỐ: Phân số phải được viết gọn gàng trong 1 dòng bằng thẻ span nội tuyến có gạch chân ở giữa để không làm vỡ khoảng cách dòng.
 
-                    QUY TẮC SỐ 2 - BỐ CỤC & BẢNG BIỂU:
-                    - Dịch đầy đủ các bảng dữ liệu (Table) ở đầu trang.
-                    - Giữ nguyên cấu trúc câu hỏi 9 đến 15. Dùng HTML structure gọn gàng.
-                    
-                    CSS CHUẨN:
+                    CSS CHUẨN ĐỂ ÉP VỪA KHÍT 1 TRANG A4 VÀ 2 CỘT:
                     <style>
-                        @page {{ size: A4 portrait; margin: 10mm 15mm; }}
-                        body {{ font-family: sans-serif; font-size: 10.5pt; line-height: 1.4; color: #333; position: relative; }}
-                        p, div, h1, h2, h3 {{ margin: 0 0 6px 0; padding: 0; }}
-                        table {{ border-collapse: collapse; width: 100%; margin-bottom: 15px; font-size: 9pt; }}
-                        th, td {{ border: 1px solid #999; padding: 4px; text-align: center; }}
-                        th {{ background-color: #f2f2f2; font-weight: bold; }}
+                        @page {{ 
+                            size: A4 portrait; 
+                            margin: 10mm; 
+                        }}
+                        body {{ 
+                            font-family: Arial, sans-serif; 
+                            font-size: 8.5pt; 
+                            line-height: 1.25; 
+                            color: #222; 
+                        }}
+                        /* Ép toàn bộ nội dung chia thành 2 cột đúng chuẩn sách giáo khoa */
+                        .book-page {{
+                            column-count: 2;
+                            column-gap: 15px;
+                            height: 275mm; /* Khớp chiều cao A4 */
+                            box-sizing: border-box;
+                        }}
+                        /* Ngăn các khối bài tập bị ngắt trang xấu xí */
+                        .exercise, div, p {{
+                            break-inside: avoid;
+                            margin-bottom: 6px;
+                        }}
+                        h1, h2, h3 {{ margin: 0 0 5px 0; }}
+                        .box-tieu-de {{ 
+                            background: #d9534f; color: white; padding: 4px 8px; 
+                            font-weight: bold; border-radius: 4px; display: inline-block; font-size: 10pt;
+                        }}
+                        img {{ 
+                            max-width: 100%; 
+                            height: auto; 
+                            display: block; 
+                            margin: 3px auto; 
+                        }}
                     </style>
+                    
+                    Bọc toàn bộ nội dung trang sách bên trong thẻ: <div class="book-page"> ... nội dung ... </div>
+                    Chỉ trả về mã HTML hoàn chỉnh, không kèm markdown code block.
                     """
 
                     response = client.models.generate_content(
-                        model="gemini-3.5-flash", contents=[image, prompt]
+                        model="gemini-2.5-flash", contents=[image, prompt]
                     )
 
                     html_code = response.text
                     html_code = re.sub(r"^```html\s*", "", html_code, flags=re.MULTILINE)
                     html_code = re.sub(r"^```\s*", "", html_code, flags=re.MULTILINE)
 
-                    # --- HÀM CẮT ẢNH VÀ TẨY TRẮNG NỀN THÔNG MINH ---
+                    # --- HÀM CẮT ẢNH VÀ TẨY NỀN SẠCH 100% ---
                     def replace_crop_tag(match):
                         try:
                             ymin = int(match.group("ymin"))
@@ -102,40 +129,46 @@ if uploaded_file:
                             right = (xmax / 1000.0) * img_width
                             bottom = (ymax / 1000.0) * img_height
 
-                            # Cắt ảnh
+                            # Cắt ảnh chuẩn xác
                             cropped_img = image.crop((max(0, left-2), max(0, top-2), min(img_width, right+2), min(img_height, bottom+2)))
 
-                            # THUẬT TOÁN TẨY TRẮNG NỀN GIẤY:
-                            # 1. Tăng độ tương phản (Contrast) lên 20%
-                            enhancer_contrast = ImageEnhance.Contrast(cropped_img)
-                            cropped_img = enhancer_contrast.enhance(1.2)
-                            
-                            # 2. Tăng độ sáng (Brightness) lên 15% -> Giúp màu giấy xám thành màu trắng tinh
-                            enhancer_brightness = ImageEnhance.Brightness(cropped_img)
-                            cropped_img = enhancer_brightness.enhance(1.15)
+                            # THUẬT TOÁN TẨY NỀN Ố VÀNG THÀNH TRẮNG TINH:
+                            cropped_img = cropped_img.convert("RGBA")
+                            datas = cropped_img.getdata()
+                            new_data = []
+                            for item in datas:
+                                r, g, b, a = item
+                                # Nếu pixel có màu sáng (gần giống màu nền giấy cũ/trắng ngà), đổi thành trắng tinh
+                                if r > 185 and g > 185 and b > 175 and abs(r - g) < 25 and abs(g - b) < 25:
+                                    new_data.append((255, 255, 255, 255))
+                                else:
+                                    new_data.append(item)
+                            cropped_img.putdata(new_data)
+                            cropped_img = cropped_img.convert("RGB")
 
-                            # Đóng gói ảnh thành chuỗi Base64
+                            # Lưu vào bộ nhớ đệm dạng Base64
                             buffered = io.BytesIO()
                             cropped_img.save(buffered, format="PNG")
                             img_str = base64.b64encode(buffered.getvalue()).decode()
 
-                            # Chèn ảnh, dùng style CSS blend-mode (hỗ trợ hiển thị hài hòa hơn)
-                            return f'<img src="data:image/png;base64,{img_str}" style="max-width: 100%; height: auto; display: block; mix-blend-mode: multiply;"/>'
-                        except Exception:
+                            return f'<img src="data:image/png;base64,{img_str}" style="max-width: 100%; height: auto; display: block;"/>'
+                        except Exception as e:
+                            print(f"Lỗi crop: {e}")
                             return ""
 
                     final_html = re.sub(r'<CROP_IMAGE\s+ymin="(?P<ymin>\d+)"\s+xmin="(?P<xmin>\d+)"\s+ymax="(?P<ymax>\d+)"\s+xmax="(?P<xmax>\d+)"></CROP_IMAGE>', replace_crop_tag, html_code)
 
-                    st.toast('Đã phân tích xong trang sách!', icon='✅')
+                    st.toast('Đã phân tích xong!', icon='✅')
 
+                    # Xuất PDF bằng Weasyprint
                     pdf_bytes = weasyprint.HTML(string=final_html).write_pdf()
 
-                    st.success("🎉 Hoàn tất! Các nhân vật 3D đã được hòa quyện vào trang giấy.")
+                    st.success("🎉 Hoàn tất! Trang sách đã được tối ưu bố cục 2 cột và làm sạch nền tuyệt đối.")
                     
                     st.download_button(
                         label="📥 Tải File PDF Về Máy",
                         data=pdf_bytes,
-                        file_name=f"Trang_Sach_{lang_code[:2].upper()}.pdf",
+                        file_name=f"Trang_Sach_Chuan_{lang_code[:2].upper()}.pdf",
                         mime="application/pdf",
                         use_container_width=True
                     )
