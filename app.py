@@ -36,25 +36,28 @@ if api_key:
       ):
         with st.spinner("AI đang dịch chữ và trích xuất hình ảnh..."):
           try:
-            # PROMPT YÊU CẦU AI TRẢ VỀ TỌA ĐỘ HÌNH VẼ
+            # CẬP NHẬT PROMPT: Ép CSS chuẩn cho Weasyprint để chống nhảy trang
             prompt = """
-                        Bạn là một chuyên gia dàn trang sách giáo khoa.
-                        Hãy đọc ảnh trang sách này và tạo lại TRANG SÁCH ĐÃ DỊCH SANG TIẾNG VIỆT dưới dạng mã HTML5.
+                        Bạn là một chuyên gia dàn trang sách giáo khoa bằng HTML5 và CSS.
+                        Hãy đọc ảnh trang sách này và tạo lại TRANG SÁCH ĐÃ DỊCH SANG TIẾNG VIỆT.
 
-                        QUY TẮC XỬ LÝ HÌNH VẼ / MINH HỌA 3D / BẢNG BIỂU PHỨC TẠP:
-                        - Tuyệt đối KHÔNG tự vẽ lại các hình vẽ 3D, xúc xắc, khối lập phương, sơ đồ trải phẳng bằng SVG hay CSS.
-                        - Thay vào đó, với MỖI hình minh họa/sơ đồ trong bài tập, hãy đặt một thẻ giữ chỗ theo định dạng:
-                          <CROP_IMAGE ymin="TỎA_ĐỘ_Y1" xmin="TỌA_ĐỘ_X1" ymax="TỎA_ĐỘ_Y2" xmax="TỌA_ĐỘ_X2"></CROP_IMAGE>
-                          (Tọa độ chuẩn hóa từ 0 đến 1000 theo tỷ lệ bức ảnh).
+                        QUY TẮC CSS (RẤT QUAN TRỌNG ĐỂ KHÔNG BỊ LỖI PDF):
+                        1. Khổ giấy: @page { size: A4 portrait; margin: 15mm; }
+                        2. Layout 2 cột: KHÔNG dùng display: flex hay grid cho 2 cột chính. BẮT BUỘC dùng CSS Columns:
+                           .two-columns { column-count: 2; column-gap: 30px; }
+                        3. Chống nhảy trang (Lỗi khoảng trắng): Với mỗi block bài tập, BẮT BUỘC thêm CSS: `break-inside: avoid; page-break-inside: avoid;` để nội dung không bị vỡ và đẩy xuống trang dưới.
+                        4. Hình ảnh: Các hình ảnh phải có `max-width: 100%; height: auto; display: block; margin: 10px auto;`.
 
-                        YÊU CẦU CHUNG:
-                        1. BỐ CỤC: Giữ nguyên cấu trúc 2 cột, thứ tự bài tập, khung tiêu đề màu da cam.
-                        2. DỊCH THUẬT: Dịch chính xác toàn bộ câu hỏi, yêu cầu sang Tiếng Việt.
-                        3. Khổ A4: CSS có @page { size: A4 portrait; margin: 12mm; }
+                        QUY TẮC XỬ LÝ HÌNH VẼ 3D / BẢNG BIỂU:
+                        - Tuyệt đối KHÔNG tự vẽ lại bằng SVG, CSS, hay ký tự.
+                        - Với MỖI hình minh họa, hãy chèn chính xác chuỗi sau (giữ đúng thứ tự ymin, xmin, ymax, xmax):
+                          <CROP_IMAGE ymin="Y1" xmin="X1" ymax="Y2" xmax="X2"></CROP_IMAGE>
+                          (Tọa độ từ 0 đến 1000 theo tỷ lệ ảnh).
 
-                        Chỉ trả về mã HTML hoàn chỉnh, không kèm markdown code block.
+                        Chỉ trả về mã HTML hoàn chỉnh, không có markdown code block (không bắt đầu bằng ```html).
                         """
 
+            # Lưu ý: Kiểm tra lại tên model, hiện tại chuẩn là gemini-1.5-flash hoặc gemini-2.0-flash
             response = client.models.generate_content(
                 model="gemini-3.5-flash", contents=[image, prompt]
             )
@@ -68,40 +71,36 @@ if api_key:
             # --- BƯỚC XỬ LÝ CẮT ẢNH TỰ ĐỘNG BẰNG PYTHON ---
             def replace_crop_tag(match):
               try:
-                # Lấy tọa độ tỷ lệ 0-1000
                 ymin = int(match.group("ymin"))
                 xmin = int(match.group("xmin"))
                 ymax = int(match.group("ymax"))
                 xmax = int(match.group("xmax"))
 
-                # Chuyển sang pixel thực tế của ảnh
                 left = (xmin / 1000.0) * img_width
                 top = (ymin / 1000.0) * img_height
                 right = (xmax / 1000.0) * img_width
                 bottom = (ymax / 1000.0) * img_height
 
-                # Cắt vùng ảnh gốc
                 cropped_img = image.crop((left, top, right, bottom))
 
-                # Chuyển ảnh cắt thành mã Base64 nhúng thẳng vào HTML
                 buffered = io.BytesIO()
                 cropped_img.save(buffered, format="PNG")
                 img_str = base64.b64encode(buffered.getvalue()).decode()
 
-                return f'<img src="data:image/png;base64,{img_str}" style="max-width:100%; height:auto; display:block; margin: 5px auto;"/>'
+                return f'<img src="data:image/png;base64,{img_str}" style="max-width:100%; height:auto; display:block; margin: 10px auto;"/>'
               except Exception:
                 return ""
 
-            # Pattern tìm các thẻ <CROP_IMAGE ...>
-            pattern = r'<CROP_IMAGE\s+ymin="(?P<ymin>\d+)"\s+xmin="(?P<xmin>\d+)"\s+ymax="(?P<ymax>\d+)"\s+xmax="(?P<xmax>\d+)"></CROP_IMAGE>'
+            # Regex đã được nới lỏng để bắt thẻ tốt hơn dù AI có sinh ra thẻ tự đóng hay có khoảng trắng thừa
+            pattern = r'<CROP_IMAGE\s+ymin="(?P<ymin>\d+)"\s+xmin="(?P<xmin>\d+)"\s+ymax="(?P<ymax>\d+)"\s+xmax="(?P<xmax>\d+)"[^>]*>(?:</CROP_IMAGE>)?'
             final_html = re.sub(pattern, replace_crop_tag, html_code)
 
             # Chuyển thành PDF
             pdf_bytes = weasyprint.HTML(string=final_html).write_pdf()
 
-            st.success("🎉 Hoàn tất! File PDF đã chính xác 100% hình vẽ gốc.")
+            st.success("🎉 Hoàn tất! File PDF đã được canh chỉnh lại layout.")
             st.download_button(
-                label="📥 Tải File PDF Trang Sách (Hình ảnh chuẩn 100%)",
+                label="📥 Tải File PDF Trang Sách",
                 data=pdf_bytes,
                 file_name="Trang_Sach_Chuan_100.pdf",
                 mime="application/pdf",
